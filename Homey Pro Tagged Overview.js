@@ -42,6 +42,7 @@ const showVirtual = true; // Show amount of virtual devices
 const showIR = true; // Show amount of Infra Red devices
 const showZwave = true; // Show amount of Z-Wave devices
 const showZigbee = true; // Show amount of ZigBee devices
+const showHomeyBridge = true; // Show amount of Homey Bridge devices
 const showOtherDevices = true; // Show amount of other devices
 const showTotalDevices = true // Show amount of total devices
 
@@ -50,8 +51,8 @@ const showTotalDevices = true // Show amount of total devices
 const returnableObject = {};
 const returnableString = [];
 
-returnableObject['Script_version'] = 'v1.0';
-if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.0 --------------');
+returnableObject['Script_version'] = 'v1.1';
+if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.1 --------------');
 
 if (showName) {
   await Homey.system.getSystemName()
@@ -288,7 +289,7 @@ if (showMain) {
     await Homey.logic.getVariables()
       .then(result => {
         let boolean = [], number = [], string = [];
-      
+
         Object.keys(result).forEach(function(key) {
           if (result[key].type === 'boolean') boolean.push(result[key].name + ' (ID: ' + result[key].id + ')');
           if (result[key].type === 'number') number.push(result[key].name + ' (ID: ' + result[key].id + ')');
@@ -467,7 +468,7 @@ if (showDevices) {
 
   if (showHeaders) returnableString.push(stringSeparator + '----------------- Devices -------------------');
 
-  let allDevices = 0, other = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [];
+  let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [];
 
   await Homey.devices.getDevices()
     .then(result => {
@@ -475,6 +476,15 @@ if (showDevices) {
 
       Object.keys(result).forEach(function(key) {
         const device = result[key];
+        const virtualDeviceApps = [
+          'homey:virtualdriver',
+          'homey:app:com.arjankranenburg.virtual',
+          'homey:app:nl.qluster-it.DeviceCapabilities',
+          'homey:app:nl.fellownet.chronograph',
+          'homey:app:net.i-dev.betterlogic',
+          'homey:app:com.swttt.devicegroups',
+          'homey:app:com.sysInternals',
+        ]
 
         if (
           device.hasOwnProperty('available')
@@ -483,21 +493,13 @@ if (showDevices) {
           unavailableDevices.push(device.name + ' (' + device.unavailableMessage + ')');
         }
 
-        if (device.driverUri === 'homey:manager:vdevice') {
-          if (device.driverId === 'infraredbasic' || device.driverId.includes('virtualdriverinfrared')) {
-            irNames.push(device.name);
-          }
-          else {
-            virtualNames.push(device.name);
-          }
+        if (device.driverId.includes('infraredbasic') || device.driverId.includes('homey:virtualdriverinfrared')) {
+          irNames.push(device.name);
         }
-        else if (
-          device.driverUri === 'homey:app:com.arjankranenburg.virtual'
-          || device.driverUri === 'homey:app:nl.qluster-it.DeviceCapabilities'
-          || device.driverUri === 'homey:app:nl.fellownet.chronograph'
-          || device.driverUri === 'homey:app:net.i-dev.betterlogic'
-          || device.driverUri === 'homey:app:com.swttt.devicegroups'
-        ) {
+        else if (device.driverId.includes('homey:virtualdriverbridge')) {
+          homeyBridge++;
+        }
+        else if (virtualDeviceApps.some(app => app === device.driverUri || device.driverId.includes(app))) {
           virtualNames.push(device.name);
         }
         else if (device.flags.includes('zwaveRoot')) {
@@ -505,7 +507,7 @@ if (showDevices) {
 
           if (showZwave) {
             zwaveNodes.push(Number(device.settings.zw_node_id));
-            
+
             if (
               device.settings.zw_battery === '✓'
               || device.energyObj.batteries
@@ -543,7 +545,7 @@ if (showDevices) {
         }
       });
 
-      allDevices += virtualNames.length + irNames.length + zwaveDevices.length + other;
+      allDevices = virtualNames.length + irNames.length + zwaveDevices.length + other + homeyBridge;
 
       if (showUnavailable) {
         returnableObject['Devices']['Unavailable'] = {};
@@ -576,7 +578,7 @@ if (showDevices) {
           .filter((el) => !zwaveNodes.includes(el))
           .sort((a, b) => a - b)
           .slice(1);
-        
+
         returnableObject['Devices']['Zwave'] = {};
         returnableObject['Devices']['Zwave']['Overview'] = zwaveDevices.length + ' Z-Wave devices' + ' (' + zwaveSxDevices.length + ' Unsecure, ' + zwaveS0Devices.length + ' Secure (S0), ' + zwaveS2AuthDevices.length + ' Secure (S2 Authenticated), ' + zwaveS2UnauthDevices.length + ' Secure (S2 Unauthenticated), ' + zwaveRouterDevices.length + ' Router, ' + zwaveBatteryDevices.length + ' Battery, ' + result.zw_state.noAckNodes.length + ' Unreachable, ' + unknownNodes.length + ' Unknown)';
         returnableObject['Devices']['Zwave']['Total'] = zwaveDevices.length;
@@ -628,7 +630,7 @@ if (showDevices) {
       if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
       if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
     });
-    
+
     if (showZigbee) {
       returnableObject['Devices']['Zigbee'] = {};
       returnableObject['Devices']['Zigbee']['Overview'] = zigbeeDevices.length + ' Zigbee devices' + ' (' + routerDevices.length + ' Router, ' + endDevices.length + ' End device)';
@@ -642,6 +644,13 @@ if (showDevices) {
 
     allDevices += zigbeeDevices.length;
   };
+
+  if (showHomeyBridge) {
+    returnableObject['Devices']['Homey_Bridge'] = {};
+    returnableObject['Devices']['Homey_Bridge']['Overview'] = homeyBridge + ' Homey Bridges';
+    returnableObject['Devices']['Homey_Bridge']['Total'] = homeyBridge;
+    returnableString.push(homeyBridge + ' Homey Bridges');
+  }
 
   if (showOtherDevices) {
     returnableObject['Devices']['Other'] = {};
