@@ -331,7 +331,7 @@ if (homeyPlatformVersion === 2) {
     .catch(() => log('Failed: Getting images'));
 }
 
-if (homeyPlatformVersion === 2 && Homey.moods !== undefined) {
+if (Homey.moods !== undefined) {
   await Homey.moods.getMoods()
     .then(result => {
       let moods = [];
