@@ -36,7 +36,7 @@ const showIRDevices = false; // Names of all InfraRed devices
 
 // ================= Don't edit anything below here =================
 
-log('--------------- Homey Pro Overview v1.17 --------------');
+log('--------------- Homey Pro Overview v1.18 --------------');
 
 await Homey.system.getSystemName()
   .then(result => log('Homey name:', result))

@@ -51,8 +51,8 @@ const showTotalDevices = true // Show amount of total devices
 const returnableObject = {};
 const returnableString = [];
 
-returnableObject['Script_version'] = 'v1.1';
-if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.1 --------------');
+returnableObject['Script_version'] = 'v1.2';
+if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.2 --------------');
 
 if (showName) {
   await Homey.system.getSystemName()
