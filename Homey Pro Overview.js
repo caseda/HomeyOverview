@@ -453,7 +453,7 @@ await Homey.devices.getDevices()
       else if (device.driverId.includes('homey:virtualdriverbridge')) {
         homeyBridge++;
       }
-      else if (virtualDeviceApps.some(app => virtualDeviceApps === device.driverUri || device.driverId.includes(app))) {
+      else if (virtualDeviceApps.some(app => app === device.driverUri || device.driverId.includes(app))) {
         virtualNames.push(device.name);
       }
       else if (device.flags.includes('zwaveRoot')) {
