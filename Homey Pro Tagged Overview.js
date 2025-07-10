@@ -43,8 +43,9 @@ const showIR = true; // Show amount of Infra Red devices
 const showZwave = true; // Show amount of Z-Wave devices
 const showZigbee = true; // Show amount of ZigBee devices
 const showHomeyBridge = true; // Show amount of Homey Bridge devices
+const showGroupDevices = true; // Show amount of group devices
 const showOtherDevices = true; // Show amount of other devices
-const showTotalDevices = true // Show amount of total devices
+const showTotalDevices = true; // Show amount of total devices
 
 // ================= Don't edit anything below here =================
 
@@ -289,7 +290,7 @@ if (showMain) {
     await Homey.logic.getVariables()
       .then(result => {
         let boolean = [], number = [], string = [];
-
+      
         Object.keys(result).forEach(function(key) {
           if (result[key].type === 'boolean') boolean.push(result[key].name + ' (ID: ' + result[key].id + ')');
           if (result[key].type === 'number') number.push(result[key].name + ' (ID: ' + result[key].id + ')');
@@ -374,7 +375,7 @@ if (showMain) {
   }
 
   if (showMoods) {
-    if (Homey.moods !== undefined) {
+    if (homeyPlatformVersion === 2 && Homey.moods !== undefined) {
       await Homey.moods.getMoods()
         .then(result => {
           let moods = [];
@@ -468,7 +469,7 @@ if (showDevices) {
 
   if (showHeaders) returnableString.push(stringSeparator + '----------------- Devices -------------------');
 
-  let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [];
+  let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [], groupDevices = {};
 
   await Homey.devices.getDevices()
     .then(result => {
@@ -493,6 +494,31 @@ if (showDevices) {
           unavailableDevices.push(device.name + ' (' + device.unavailableMessage + ')');
         }
 
+        if (homeyPlatformVersion === 2) {
+          if (device.driverId.includes('homey:virtualdrivergroup')) {
+            if (!groupDevices[device.id]) {
+              groupDevices[device.id] = {
+                name: device.name,
+                devices: []
+              };
+            }
+            else {
+              groupDevices[device.id].name = device.name;
+            }
+          }
+          
+          if (device.group) {
+            if (!groupDevices[device.group]) {
+              groupDevices[device.group] = {
+                name: null,
+                devices: []
+              };
+            }
+
+            groupDevices[device.group].devices.push(device.name);
+          }
+        }
+
         if (device.driverId.includes('infraredbasic') || device.driverId.includes('homey:virtualdriverinfrared')) {
           irNames.push(device.name);
         }
@@ -507,7 +533,7 @@ if (showDevices) {
 
           if (showZwave) {
             zwaveNodes.push(Number(device.settings.zw_node_id));
-
+            
             if (
               device.settings.zw_battery === '✓'
               || device.energyObj.batteries
@@ -545,7 +571,7 @@ if (showDevices) {
         }
       });
 
-      allDevices = virtualNames.length + irNames.length + zwaveDevices.length + other + homeyBridge;
+      allDevices = Object.keys(groupDevices).length + virtualNames.length + irNames.length + zwaveDevices.length + other + homeyBridge;
 
       if (showUnavailable) {
         returnableObject['Devices']['Unavailable'] = {};
@@ -568,6 +594,13 @@ if (showDevices) {
         returnableObject['Devices']['InfraRed']['Names'] = irNames;
         returnableString.push(irNames.length + ' Infrared (database) devices');
       }
+      if (homeyPlatformVersion === 2 && showGroupDevices) {
+        returnableObject['Groups'] = {};
+        returnableObject['Groups']['Overview'] = Object.keys(groupDevices).length + ' Group devices';
+        returnableObject['Groups']['Total'] = Object.keys(groupDevices).length;
+        returnableObject['Groups'] = groupDevices;
+        returnableString.push(Object.keys(groupDevices).length + ' Group devices');
+      }
     })
     .catch(() => log('Failed: Getting devices'));
 
@@ -578,7 +611,7 @@ if (showDevices) {
           .filter((el) => !zwaveNodes.includes(el))
           .sort((a, b) => a - b)
           .slice(1);
-
+        
         returnableObject['Devices']['Zwave'] = {};
         returnableObject['Devices']['Zwave']['Overview'] = zwaveDevices.length + ' Z-Wave devices' + ' (' + zwaveSxDevices.length + ' Unsecure, ' + zwaveS0Devices.length + ' Secure (S0), ' + zwaveS2AuthDevices.length + ' Secure (S2 Authenticated), ' + zwaveS2UnauthDevices.length + ' Secure (S2 Unauthenticated), ' + zwaveRouterDevices.length + ' Router, ' + zwaveBatteryDevices.length + ' Battery, ' + result.zw_state.noAckNodes.length + ' Unreachable, ' + unknownNodes.length + ' Unknown)';
         returnableObject['Devices']['Zwave']['Total'] = zwaveDevices.length;
@@ -630,7 +663,7 @@ if (showDevices) {
       if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
       if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
     });
-
+    
     if (showZigbee) {
       returnableObject['Devices']['Zigbee'] = {};
       returnableObject['Devices']['Zigbee']['Overview'] = zigbeeDevices.length + ' Zigbee devices' + ' (' + routerDevices.length + ' Router, ' + endDevices.length + ' End device)';
@@ -644,7 +677,7 @@ if (showDevices) {
 
     allDevices += zigbeeDevices.length;
   };
-
+  
   if (showHomeyBridge) {
     returnableObject['Devices']['Homey_Bridge'] = {};
     returnableObject['Devices']['Homey_Bridge']['Overview'] = homeyBridge + ' Homey Bridges';
