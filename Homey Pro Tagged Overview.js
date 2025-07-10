@@ -52,8 +52,8 @@ const showTotalDevices = true; // Show amount of total devices
 const returnableObject = {};
 const returnableString = [];
 
-returnableObject['Script_version'] = 'v1.2';
-if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.2 --------------');
+returnableObject['Script_version'] = 'v1.3';
+if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.3 --------------');
 
 if (showName) {
   await Homey.system.getSystemName()
@@ -375,7 +375,7 @@ if (showMain) {
   }
 
   if (showMoods) {
-    if (homeyPlatformVersion === 2 && Homey.moods !== undefined) {
+    if (Homey.moods !== undefined) {
       await Homey.moods.getMoods()
         .then(result => {
           let moods = [];
