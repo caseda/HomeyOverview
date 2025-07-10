@@ -33,10 +33,11 @@ const showZigbeeEndDevice = false; // Names of ZigBee: end device devices
 const showZigbeeLastSeen = false; // Show additional: the last seen time and date (HP 2023+ only)
 const showVirtualDevices = false; // Names of all Virtual devices
 const showIRDevices = false; // Names of all InfraRed devices
+const showGroupDevices = false; // Names of all group devices and its containing devices
 
 // ================= Don't edit anything below here =================
 
-log('--------------- Homey Pro Overview v1.18 --------------');
+log('--------------- Homey Pro Overview v1.19 --------------');
 
 await Homey.system.getSystemName()
   .then(result => log('Homey name:', result))
@@ -190,7 +191,7 @@ await Homey.zones.getZones()
       zones[result[key].id] = result[key].name;
     });
     log(Object.keys(result).length, 'Zones');
-
+    
     if (showZones) {
       log('---------------------------------------------')
       log('Zones:');
@@ -220,7 +221,7 @@ await Homey.insights.getLogs()
 await Homey.logic.getVariables()
   .then(result => {
     let boolean = [], number = [], string = [];
-
+  
     Object.keys(result).forEach(function(key) {
       if (result[key].type === 'boolean') boolean.push(result[key].name + ' (ID: ' + result[key].id + ')');
       if (result[key].type === 'number') number.push(result[key].name + ' (ID: ' + result[key].id + ')');
@@ -228,21 +229,21 @@ await Homey.logic.getVariables()
     });
 
     log(Object.keys(result).length, 'Logic Variables', '(' + boolean.length + ' Boolean (Yes/No), ' + number.length + ' Number, ' + string.length + ' String (Text))');
-
+    
     if (showLogicBoolean) {
       log('---------------------------------------------')
       log('Boolean (yes/no) variable(s):');
       log(boolean.join('\r\n'));
       log('---------------------------------------------')
     }
-
+    
     if (showLogicNumber) {
       log('---------------------------------------------')
       log('Number variable(s):');
       log(number.join('\r\n'));
       log('---------------------------------------------')
     }
-
+    
     if (showLogicString) {
       log('---------------------------------------------')
       log('String (text) variable(s):');
@@ -262,7 +263,7 @@ await Homey.flow.getFlows()
     });
 
     log(Object.keys(result).length, 'Flows', '('  + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
-
+    
     if (showBrokenFlows) {
       log('---------------------------------------------')
       log('Broken flow name(s):');
@@ -288,7 +289,7 @@ await Homey.flow.getAdvancedFlows()
     });
 
     log(Object.keys(result).length, 'Advanced flows', '('  + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
-
+    
     if (showBrokenAdvancedFlows) {
       log('---------------------------------------------')
       log('Broken advanced flow name(s):');
@@ -394,7 +395,7 @@ await Homey.apps.getAppSettings({id: 'net.i-dev.betterlogic'})
   });
 
 log('\r\n----------------- Devices -------------------');
-let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [];
+let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [], groupDevices = {}, groupedDevices = 0;
 
 await Homey.devices.getDevices()
   .then(result => {
@@ -403,13 +404,13 @@ await Homey.devices.getDevices()
     Object.keys(result).forEach(function(key) {
       const device = result[key];
       const virtualDeviceApps = [
+        'homey:virtualdriver',
         'homey:app:com.arjankranenburg.virtual',
         'homey:app:nl.qluster-it.DeviceCapabilities',
         'homey:app:nl.fellownet.chronograph',
         'homey:app:net.i-dev.betterlogic',
         'homey:app:com.swttt.devicegroups',
         'homey:app:com.sysInternals',
-        'homey:virtualdriver',
       ]
 
       if (
@@ -419,19 +420,46 @@ await Homey.devices.getDevices()
         unavailableDevices.push(device.name + ' (' + device.unavailableMessage + ')');
       }
 
+      if (homeyPlatformVersion === 2) {
+        if (device.driverId.includes('homey:virtualdrivergroup')) {
+          if (!groupDevices[device.id]) {
+            groupDevices[device.id] = {
+              name: device.name,
+              devices: []
+            };
+          }
+          else {
+            groupDevices[device.id].name = device.name;
+          }
+        }
+        
+        if (device.group) {
+          groupedDevices += 1;
+
+          if (!groupDevices[device.group]) {
+            groupDevices[device.group] = {
+              name: null,
+              devices: []
+            };
+          }
+
+          groupDevices[device.group].devices.push(device.name);
+        }
+      }
+
       if (device.driverId.includes('infraredbasic') || device.driverId.includes('homey:virtualdriverinfrared')) {
         irNames.push(device.name);
       }
       else if (device.driverId.includes('homey:virtualdriverbridge')) {
         homeyBridge++;
       }
-      else if (virtualDeviceApps.some(app => app === device.driverUri || device.driverId.includes(app))) {
+      else if (virtualDeviceApps.some(app => virtualDeviceApps === device.driverUri || device.driverId.includes(app))) {
         virtualNames.push(device.name);
       }
       else if (device.flags.includes('zwaveRoot')) {
         zwaveDevices.push(device.name + ' (Node ID: ' + device.settings.zw_node_id + ')');
         zwaveNodes.push(Number(device.settings.zw_node_id));
-
+        
         if (
           device.settings.zw_battery === '✓'
           || device.energyObj.batteries
@@ -468,14 +496,32 @@ await Homey.devices.getDevices()
       }
     });
 
-    allDevices = virtualNames.length + irNames.length + zwaveDevices.length + other + homeyBridge;
+    allDevices = Object.keys(groupDevices).length + virtualNames.length + irNames.length + zwaveDevices.length + other + homeyBridge;
 
-    log(unavailableDevices.length, 'Unavailable devices')
+    log(unavailableDevices.length, 'Unavailable devices');
     if (showUnavailableDevices) {
       log('---------------------------------------------')
       log('Unavailable device(s):');
       log(unavailableDevices.sort((a, b) => a - b).join('\r\n'));
       log('---------------------------------------------')
+    }
+
+    if (homeyPlatformVersion === 2) {
+      log(Object.keys(groupDevices).length, 'Group devices');
+      log(groupedDevices, 'Devices in a group');
+      if (showGroupDevices) {
+        log('---------------------------------------------')
+        log('Group device(s):');
+        Object.values(groupDevices).forEach(group => {
+          console.log(`${group.name} (${group.devices.length} devices: ${group.devices.sort((a, b) => a - b).join(", ")})`);
+        });
+        log('---------------------------------------------')
+      }
+    }
+    else {
+      if (showGroupDevices) {
+        log('Group devices is unsupported');
+      }
     }
 
     log(virtualNames.length, 'Virtual devices');
@@ -502,7 +548,7 @@ await Homey.zwave.getState()
       .filter((el) => !zwaveNodes.includes(el))
       .sort((a, b) => a - b)
       .slice(1);
-
+    
     log(zwaveDevices.length, 'Z-Wave devices', '(' + zwaveSxDevices.length + ' Unsecure, ' + zwaveS0Devices.length + ' Secure (S0), ' + zwaveS2AuthDevices.length + ' Secure (S2 Authenticated), ' + zwaveS2UnauthDevices.length + ' Secure (S2 Unauthenticated), ' + zwaveRouterDevices.length + ' Router, ' + zwaveBatteryDevices.length + ' Battery, ' + result.zw_state.noAckNodes.length + ' Unreachable, ' + unknownNodes.length + ' Unknown)')
 
     if (showZwaveDevices) {
@@ -601,7 +647,7 @@ if (zigbee) {
     if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
     if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
   });
-
+  
   log(zigbeeDevices.length, 'Zigbee devices', '(' + routerDevices.length + ' Router, ' + endDevices.length + ' End device)');
 
   if (showZigbeeNodes) {
