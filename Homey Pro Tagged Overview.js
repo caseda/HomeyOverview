@@ -15,11 +15,13 @@ const showName = true; // Show the current Homey name
 const showVersion = true; // Show current Homey version
 const showModel = true; // Show Homey model
 const showUptime = true; // Show the uptime
+const showBackup = true; // Show the last backup
 const showNetwork = true; // Show "network" related values
 const showThrottle = true; // Show "throttled" related values
 const showUpdate = true; // Show available Homey update
 const showStoragePre2023 = false; // Show used storage value on Homey Pro 2016 - 2019, disabled by default as this is a very heavy function for the older Homey Pro's
-const showStorage2023 = false; // Show used storage value on Homey Pro 2023
+const showStorage2023 = true; // Show used storage value on Homey Pro 2023
+const showMemory = true; // Show the current Homey memory
 
 const showMain = true; // Show everything (enabled) under "Main"
 const showUsers = true; // Show amount of users
@@ -52,8 +54,8 @@ const showTotalDevices = true; // Show amount of total devices
 const returnableObject = {};
 const returnableString = [];
 
-returnableObject['Script_version'] = 'v1.3';
-if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.3 --------------');
+returnableObject['Script_version'] = 'v1.4';
+if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.4 --------------');
 
 if (showName) {
   await Homey.system.getSystemName()
@@ -64,7 +66,7 @@ if (showName) {
     .catch(() => log('Failed: Getting Homey name'));
 }
 
-let homeyPlatformVersion, homeyVersion, timezone;
+let homeyPlatformVersion, homeyVersion, timezone, memoryTotal, memoryFree;
 await Homey.system.getInfo()
   .then(result => {
     if (showVersion) {
@@ -78,6 +80,8 @@ await Homey.system.getInfo()
     homeyPlatformVersion = result.homeyPlatformVersion || 1;
     homeyVersion = result.homeyVersion;
     timezone = result.timezone;
+    memoryTotal = result.totalmem;
+    memoryFree = result.freemem || result.freememMachine;
 
     if (showUptime) {
       const d = Math.floor(result.uptime / 86400);
@@ -122,21 +126,46 @@ await Homey.system.getInfo()
   .catch((err) => log(err));
 
 if (showUpdate) {
-    await Homey.updates.getUpdates()
-      .then(result => {
-        if(result.length > 0) {
-          returnableObject['Update_available'] = true;
-          returnableObject['Update_available_human'] = 'Yes';
-          returnableObject['Update_version'] = result[0].version;
-          returnableString.push('Update available: ' + result[0].version);
-        } else {
-          returnableObject['Update_available'] = false;
-          returnableObject['Update_available human'] = 'No';
-          returnableObject['Update_version'] = null;
-          returnableString.push('Update_available: No');
-        }
-      })
-      .catch(() => log('Failed: Getting updates'));
+  await Homey.updates.getUpdates()
+    .then(result => {
+      if (result.length > 0) {
+        returnableObject['Update_available'] = true;
+        returnableObject['Update_available_human'] = 'Yes';
+        returnableObject['Update_version'] = result[0].version;
+        returnableString.push('Update available: ' + result[0].version);
+      } else {
+        returnableObject['Update_available'] = false;
+        returnableObject['Update_available human'] = 'No';
+        returnableObject['Update_version'] = null;
+        returnableString.push('Update_available: No');
+      }
+    })
+    .catch(() => log('Failed: Getting updates'));
+}
+
+if (showBackup && homeyPlatformVersion === 2) {
+  await Homey.backup.getOptionLastSuccessfulBackup()
+    .then(result => {
+      if (result.value) {
+        const lastBackup = new Date(result.value).toLocaleString('en-GB', { timeZone: timezone, month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        returnableObject['Update_available'] = true;
+        const dateLastBackup = new Date(result.value);
+        const dateNow = new Date();
+        const dateDifference = dateNow - dateLastBackup;
+        const lastBackupAgo = Math.floor(dateDifference / (1000 * 60 * 60 * 24)) + ' days, ' + Math.floor((dateDifference / (1000 * 60 * 60)) % 24) + ' hours ago';
+        returnableObject['Backup'] = {};
+        returnableObject['Backup']['Overview'] = lastBackup, '(' + lastBackupAgo + ')';
+        returnableObject['Backup']['Date'] = lastBackup;
+        returnableObject['Backup']['Ago'] = {};
+        returnableObject['Backup']['Ago']['Human'] = lastBackupAgo;
+        returnableObject['Backup']['Ago']['Days'] = Math.round(dateDifference / (1000 * 60 * 60 * 24) * 10000) / 10000;
+        returnableObject['Backup']['Ago']['Hours'] = Math.round(dateDifference / (1000 * 60 * 60) * 1000) / 1000;
+        returnableObject['Backup']['Ago']['Minutes'] = Math.round(dateDifference / (1000 * 60) * 100) / 100;
+        returnableObject['Backup']['Ago']['Seconds'] = Math.round(dateDifference / (1000));
+        returnableString.push('Last back-up: ' + lastBackup + ' (' + lastBackupAgo + ')');
+      }
+    })
+    .catch(() => log('Failed: Getting last back-up'));
 }
 
 if (
@@ -169,6 +198,30 @@ if (
     .catch(() => log('Failed: Getting storage information'));
 }
 
+if (showMemory) {
+  if (memoryTotal && memoryFree) {
+    let memFree = memoryFree + 'B'
+    if (memoryFree >= 1000000000) {
+      memFree = (memoryFree / 1000000000).toFixed(2) + ' GB';
+    } else if (memoryFree >= 1000000) {
+      memFree = (memoryFree / 1000000).toFixed(2) + ' MB';
+    }
+    returnableObject['Memory'] = {};
+    returnableObject['Memory']['Overview'] = (memoryTotal / 1000000000).toFixed(2) + 'GB (' + memFree + ' free)';
+    returnableObject['Memory']['Total'] = {};
+    returnableObject['Memory']['Total']['Bytes'] = memoryTotal;
+    returnableObject['Memory']['Total']['KB'] = Math.round(memoryTotal / 10) / 100;
+    returnableObject['Memory']['Total']['MB'] = Math.round(memoryTotal / 10000) / 100;
+    returnableObject['Memory']['Total']['GB'] = Math.round(memoryTotal / 10000000) / 100;
+    returnableObject['Memory']['Free'] = {};
+    returnableObject['Memory']['Free']['Bytes'] = memoryFree;
+    returnableObject['Memory']['Free']['KB'] = Math.round(memoryFree / 10) / 100;
+    returnableObject['Memory']['Free']['MB'] = Math.round(memoryFree / 10000) / 100;
+    returnableObject['Memory']['Free']['GB'] = Math.round(memoryFree / 10000000) / 100;
+    returnableString.push('Memory: ' + (memoryTotal / 1000000000).toFixed(2) + ' GB (' + memFree + ' free)');
+  }
+}
+
 if (showMain) {
   if (showHeaders) returnableString.push(stringSeparator + '------------------ Main ---------------------');
 
@@ -177,7 +230,7 @@ if (showMain) {
       .then(result => {
         let owner = 0, manager = 0, user = 0, guest = 0;
 
-        Object.keys(result).forEach(function(key) {
+        Object.keys(result).forEach(function (key) {
           const role = result[key].role;
           if (role === 'owner') owner++;
           if (role === 'manager') manager++;
@@ -186,13 +239,13 @@ if (showMain) {
         });
 
         returnableObject['Users'] = {};
-        returnableObject['Users']['Overview'] = Object.keys(result).length + ' Users' + ' ('  + owner + ' Owner, ' + manager + ' Manager, ' + user + ' User, ' + guest + ' Guest)';
+        returnableObject['Users']['Overview'] = Object.keys(result).length + ' Users' + ' (' + owner + ' Owner, ' + manager + ' Manager, ' + user + ' User, ' + guest + ' Guest)';
         returnableObject['Users']['Total'] = Object.keys(result).length;
         returnableObject['Users']['Owner'] = owner;
         returnableObject['Users']['Manager'] = manager;
         returnableObject['Users']['User'] = user;
         returnableObject['Users']['Guest'] = guest;
-        returnableString.push(Object.keys(result).length + ' Users' + ' ('  + owner + ' Owner, ' + manager + ' Manager, ' + user + ' User, ' + guest + ' Guest)');
+        returnableString.push(Object.keys(result).length + ' Users' + ' (' + owner + ' Owner, ' + manager + ' Manager, ' + user + ' User, ' + guest + ' Guest)');
       })
       .catch(() => log('Failed: Getting users'));
   }
@@ -202,7 +255,7 @@ if (showMain) {
       .then(result => {
         let sdkv2Apps = [], sdkv3Apps = [], updateableApps = [], disabledApps = [], stableApps = [], testApps = [], devApps = [];
 
-        Object.keys(result).forEach(function(key) {
+        Object.keys(result).forEach(function (key) {
           if (result[key].updateAvailable) updateableApps.push(result[key].name);
           if (result[key].sdk === 2) sdkv2Apps.push(result[key].name);
           if (
@@ -218,7 +271,7 @@ if (showMain) {
         });
 
         returnableObject['Apps'] = {};
-        returnableObject['Apps']['Overview'] = Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, '  + sdkv3Apps.length + ' SDKv3, '  + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)';
+        returnableObject['Apps']['Overview'] = Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)';
         returnableObject['Apps']['Total'] = Object.keys(result).length;
         returnableObject['Apps']['Stable'] = stableApps.length;
         returnableObject['Apps']['Stable_names'] = stableApps;
@@ -234,7 +287,7 @@ if (showMain) {
         returnableObject['Apps']['Updateable_names'] = updateableApps;
         returnableObject['Apps']['Disabled'] = disabledApps.length;
         returnableObject['Apps']['Disabled_names'] = disabledApps;
-        returnableString.push(Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, '  + sdkv3Apps.length + ' SDKv3, '  + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
+        returnableString.push(Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
       })
       .catch(() => log('Failed: Getting apps'));
   }
@@ -243,7 +296,7 @@ if (showMain) {
     let zones = {};
     await Homey.zones.getZones()
       .then(result => {
-        Object.keys(result).forEach(function(key) {
+        Object.keys(result).forEach(function (key) {
           zones[result[key].id] = result[key].name;
         });
         returnableObject['Zones'] = {};
@@ -271,7 +324,7 @@ if (showMain) {
       .then(result => {
         let boolean = 0, number = 0;
 
-        Object.keys(result).forEach(function(key) {
+        Object.keys(result).forEach(function (key) {
           if (result[key].type === 'number') number++;
           if (result[key].type === 'boolean') boolean++;
         });
@@ -290,8 +343,8 @@ if (showMain) {
     await Homey.logic.getVariables()
       .then(result => {
         let boolean = [], number = [], string = [];
-      
-        Object.keys(result).forEach(function(key) {
+
+        Object.keys(result).forEach(function (key) {
           if (result[key].type === 'boolean') boolean.push(result[key].name + ' (ID: ' + result[key].id + ')');
           if (result[key].type === 'number') number.push(result[key].name + ' (ID: ' + result[key].id + ')');
           if (result[key].type === 'string') string.push(result[key].name + ' (ID: ' + result[key].id + ')');
@@ -316,19 +369,19 @@ if (showMain) {
     await Homey.flow.getFlows()
       .then(result => {
         let disabledFlows = [], brokenFlows = [];
-        Object.keys(result).forEach(function(key) {
+        Object.keys(result).forEach(function (key) {
           if (!result[key].enabled) disabledFlows.push(result[key].name);
           if (result[key].broken) brokenFlows.push(result[key].name);
         });
 
         returnableObject['Flows'] = {};
-        returnableObject['Flows']['Overview'] = Object.keys(result).length + ' Flows' + ' ('  + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)';
+        returnableObject['Flows']['Overview'] = Object.keys(result).length + ' Flows' + ' (' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)';
         returnableObject['Flows']['Total'] = Object.keys(result).length;
         returnableObject['Flows']['Broken'] = brokenFlows.length;
         returnableObject['Flows']['Broken_names'] = brokenFlows;
         returnableObject['Flows']['Disabled'] = disabledFlows.length;
         returnableObject['Flows']['Disabled_names'] = disabledFlows;
-        returnableString.push(Object.keys(result).length + ' Flows' + ' ('  + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
+        returnableString.push(Object.keys(result).length + ' Flows' + ' (' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
       })
       .catch(() => log('Failed: Getting flows'));
   }
@@ -337,19 +390,19 @@ if (showMain) {
     await Homey.flow.getAdvancedFlows()
       .then(result => {
         let disabledFlows = [], brokenFlows = [];
-        Object.keys(result).forEach(function(key) {
+        Object.keys(result).forEach(function (key) {
           if (!result[key].enabled) disabledFlows.push(result[key].name);
           if (result[key].broken) brokenFlows.push(result[key].name);
         });
 
         returnableObject['Advanced flows'] = {};
-        returnableObject['Advanced flows']['Overview'] = Object.keys(result).length + ' Flows' + ' ('  + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)';
+        returnableObject['Advanced flows']['Overview'] = Object.keys(result).length + ' Flows' + ' (' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)';
         returnableObject['Advanced flows']['Total'] = Object.keys(result).length;
         returnableObject['Advanced flows']['Broken'] = brokenFlows.length;
         returnableObject['Advanced flows']['Broken_names'] = brokenFlows;
         returnableObject['Advanced flows']['Disabled'] = disabledFlows.length;
         returnableObject['Advanced flows']['Disabled_names'] = disabledFlows;
-        returnableString.push(Object.keys(result).length + ' Flows' + ' ('  + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
+        returnableString.push(Object.keys(result).length + ' Flows' + ' (' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
       })
       .catch(() => log('Failed: Getting advanced flows'));
   }
@@ -359,7 +412,7 @@ if (showMain) {
       .then(result => {
         let images = [];
 
-        Object.keys(result).forEach(function(key) {
+        Object.keys(result).forEach(function (key) {
           if (result[key].id !== 'dummy') {
             images.push(result[key].url);
           }
@@ -380,7 +433,7 @@ if (showMain) {
         .then(result => {
           let moods = [];
 
-          Object.keys(result).forEach(async function(key) {
+          Object.keys(result).forEach(async function (key) {
             moods.push(zones[result[key].zone] + ' : ' + result[key].name);
           });
 
@@ -398,7 +451,7 @@ if (showMain) {
     await Homey.alarms.getAlarms()
       .then(result => {
         let enabled = 0;
-        Object.keys(result).forEach(function(key) {
+        Object.keys(result).forEach(function (key) {
           if (result[key].enabled) enabled++;
         });
 
@@ -412,7 +465,7 @@ if (showMain) {
   }
 
   if (showScripts) {
-    await Homey.apps.getAppSettings({id: 'com.athom.homeyscript'})
+    await Homey.apps.getAppSettings({ id: 'com.athom.homeyscript' })
       .then(result => {
         returnableObject['HomeyScript'] = {};
         returnableObject['HomeyScript']['Overview'] = Object.keys(result.scripts).length + ' HomeyScript scripts' + ' (' + ((result.tokens) ? Object.keys(result.tokens).length : 0) + ' Token/Tag)';
@@ -421,7 +474,7 @@ if (showMain) {
         returnableString.push(Object.keys(result.scripts).length + ' HomeyScript scripts' + ' (' + ((result.tokens) ? Object.keys(result.tokens).length : 0) + ' Token/Tag)');
       })
       .catch(() => {
-        if (homeyPlatformVersion === 2 && homeyVersion.localeCompare("10.0.0-rc.80", undefined, {numeric: true, preversion: ["rc"]}) < 0) {
+        if (homeyPlatformVersion === 2 && homeyVersion.localeCompare("10.0.0-rc.80", undefined, { numeric: true, preversion: ["rc"] }) < 0) {
           log('Failed: Getting HomeyScript, Homey Pro (early 2023): getting information from apps is currently unavailable.');
         }
         else {
@@ -431,10 +484,10 @@ if (showMain) {
   }
 
   if (showBL) {
-    await Homey.apps.getAppSettings({id: 'net.i-dev.betterlogic'})
+    await Homey.apps.getAppSettings({ id: 'net.i-dev.betterlogic' })
       .then(result => {
         let boolean = 0, number = 0, string = 0;
-        Object.keys(result.variables).forEach(function(key) {
+        Object.keys(result.variables).forEach(function (key) {
           if (result.variables[key].type === 'boolean') boolean++;
           if (result.variables[key].type === 'number') number++;
           if (result.variables[key].type === 'string') string++;
@@ -449,7 +502,7 @@ if (showMain) {
         returnableString.push(Object.keys(result.variables).length + ' Better Logic Variables' + ' (' + boolean + ' Boolean (Yes/No), ' + number + ' Number, ' + string + ' String)');
       })
       .catch(() => {
-        if (homeyPlatformVersion === 2 && homeyVersion.localeCompare("10.0.0-rc.80", undefined, {numeric: true, preversion: ["rc"]}) < 0) {
+        if (homeyPlatformVersion === 2 && homeyVersion.localeCompare("10.0.0-rc.80", undefined, { numeric: true, preversion: ["rc"] }) < 0) {
           log('Failed: Getting Better logic, Homey Pro (early 2023): getting information from apps is currently unavailable.');
         }
       });
@@ -475,7 +528,7 @@ if (showDevices) {
     .then(result => {
       let virtualNames = [], irNames = [];
 
-      Object.keys(result).forEach(function(key) {
+      Object.keys(result).forEach(function (key) {
         const device = result[key];
         const virtualDeviceApps = [
           'homey:virtualdriver',
@@ -506,7 +559,7 @@ if (showDevices) {
               groupDevices[device.id].name = device.name;
             }
           }
-          
+
           if (device.group) {
             if (!groupDevices[device.group]) {
               groupDevices[device.group] = {
@@ -533,7 +586,7 @@ if (showDevices) {
 
           if (showZwave) {
             zwaveNodes.push(Number(device.settings.zw_node_id));
-            
+
             if (
               device.settings.zw_battery === '✓'
               || device.energyObj.batteries
@@ -544,7 +597,7 @@ if (showDevices) {
               zwaveRouterDevices.push(device.name + ' (Node ID: ' + device.settings.zw_node_id + ')');
             }
 
-            switch(device.settings.zw_secure) {
+            switch (device.settings.zw_secure) {
               case '⨯':
                 zwaveSxDevices.push(device.name + ' (Node ID: ' + device.settings.zw_node_id + ')');
                 break;
@@ -611,7 +664,7 @@ if (showDevices) {
           .filter((el) => !zwaveNodes.includes(el))
           .sort((a, b) => a - b)
           .slice(1);
-        
+
         returnableObject['Devices']['Zwave'] = {};
         returnableObject['Devices']['Zwave']['Overview'] = zwaveDevices.length + ' Z-Wave devices' + ' (' + zwaveSxDevices.length + ' Unsecure, ' + zwaveS0Devices.length + ' Secure (S0), ' + zwaveS2AuthDevices.length + ' Secure (S2 Authenticated), ' + zwaveS2UnauthDevices.length + ' Secure (S2 Unauthenticated), ' + zwaveRouterDevices.length + ' Router, ' + zwaveBatteryDevices.length + ' Battery, ' + result.zw_state.noAckNodes.length + ' Unreachable, ' + unknownNodes.length + ' Unknown)';
         returnableObject['Devices']['Zwave']['Total'] = zwaveDevices.length;
@@ -655,7 +708,7 @@ if (showDevices) {
   if (zigbee) {
     let zigbeeDevices = [], routerDevices = [], endDevices = [];
 
-    Object.keys(zigbee.nodes).forEach(function(key) {
+    Object.keys(zigbee.nodes).forEach(function (key) {
       device = zigbee.nodes[key];
       let deviceName = device.name;
       zigbeeDevices.push(deviceName);
@@ -663,7 +716,7 @@ if (showDevices) {
       if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
       if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
     });
-    
+
     if (showZigbee) {
       returnableObject['Devices']['Zigbee'] = {};
       returnableObject['Devices']['Zigbee']['Overview'] = zigbeeDevices.length + ' Zigbee devices' + ' (' + routerDevices.length + ' Router, ' + endDevices.length + ' End device)';
@@ -677,7 +730,7 @@ if (showDevices) {
 
     allDevices += zigbeeDevices.length;
   };
-  
+
   if (showHomeyBridge) {
     returnableObject['Devices']['Homey_Bridge'] = {};
     returnableObject['Devices']['Homey_Bridge']['Overview'] = homeyBridge + ' Homey Bridges';
@@ -723,7 +776,7 @@ if (setToLogicVariable) {
       });
   }
 
-  if (variableID) await Homey.logic.updateVariable({ id: variableID, variable: {value} })
+  if (variableID) await Homey.logic.updateVariable({ id: variableID, variable: { value } })
     .then(result => {
       if (result) log('Set variable: ' + result.name + ' (' + result.id + ')');
     })

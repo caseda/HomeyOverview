@@ -37,19 +37,21 @@ const showGroupDevices = false; // Names of all group devices and its containing
 
 // ================= Don't edit anything below here =================
 
-log('--------------- Homey Pro Overview v1.19 --------------');
+log('--------------- Homey Pro Overview v1.20 --------------');
 
 await Homey.system.getSystemName()
   .then(result => log('Homey name:', result))
   .catch(() => log('Failed: Getting Homey name'));
 
-let homeyPlatformVersion, homeyVersion, timezone;
+let homeyPlatformVersion, homeyVersion, timezone, memoryTotal, memoryFree;
 await Homey.system.getInfo()
   .then(result => {
     log('Homey version:', homeyVersion = result.homeyVersion);
     log('Homey model:', result.homeyModelName, '(' + result.cpus.length + ' core(s))');
     homeyPlatformVersion = result.homeyPlatformVersion || 1;
     timezone = result.timezone;
+    memoryTotal = result.totalmem;
+    memoryFree = result.freemem || result.freememMachine;
 
     const d = Math.floor(result.uptime / 86400);
     const h = Math.floor((result.uptime % 86400) / 3600);
@@ -73,13 +75,28 @@ await Homey.system.getInfo()
 
 await Homey.updates.getUpdates()
   .then(result => {
-    if(result.length > 0) {
+    if (result.length > 0) {
       log('Update available:', result[0].version);
     } else {
       log('Update available: No');
     }
   })
   .catch(() => log('Failed: Getting updates'));
+
+if (homeyPlatformVersion === 2) {
+  await Homey.backup.getOptionLastSuccessfulBackup()
+    .then(result => {
+      if (result.value) {
+        const lastBackup = new Date(result.value).toLocaleString('en-GB', { timeZone: timezone, month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const dateLastBackup = new Date(result.value);
+        const dateNow = new Date();
+        const dateDifference = dateNow - dateLastBackup;
+        const lastBackupAgo = Math.floor(dateDifference / (1000 * 60 * 60 * 24)) + ' days and ' + Math.floor((dateDifference / (1000 * 60 * 60)) % 24) + ' hours ago';
+        log('Last back-up:', lastBackup, '(' + lastBackupAgo + ')');
+      }
+    })
+    .catch(() => log('Failed: Getting last back-up'));
+}
 
 if (showStorage || homeyPlatformVersion === 2) {
   await Homey.system.getStorageInfo()
@@ -95,13 +112,23 @@ if (showStorage || homeyPlatformVersion === 2) {
     .catch(() => log('Failed: Getting storage information'));
 }
 
+if (memoryTotal && memoryFree) {
+  let memFree = memoryFree + 'B'
+  if (memoryFree >= 1000000000) {
+    memFree = (memoryFree / 1000000000).toFixed(2) + ' GB';
+  } else if (memoryFree >= 1000000) {
+    memFree = (memoryFree / 1000000).toFixed(2) + ' MB';
+  }
+  log('Memory:', (memoryTotal / 1000000000).toFixed(2), 'GB (' + memFree + ' free)');
+}
+
 log('\r\n------------------ Main ---------------------');
 
 await Homey.users.getUsers()
   .then(result => {
     let owner = 0, manager = 0, user = 0, guest = 0;
 
-    Object.keys(result).forEach(function(key) {
+    Object.keys(result).forEach(function (key) {
       const role = result[key].role;
       if (role === 'owner') owner++;
       if (role === 'manager') manager++;
@@ -109,7 +136,7 @@ await Homey.users.getUsers()
       if (role === 'guest') guest++;
     });
 
-    log(Object.keys(result).length, 'Users', '('  + owner + ' Owner, ' + manager + ' Manager, ' + user + ' User, ' + guest + ' Guest)');
+    log(Object.keys(result).length, 'Users', '(' + owner + ' Owner, ' + manager + ' Manager, ' + user + ' User, ' + guest + ' Guest)');
   })
   .catch(() => log('Failed: Getting users'));
 
@@ -117,7 +144,7 @@ await Homey.apps.getApps()
   .then(result => {
     let sdkv2Apps = [], sdkv3Apps = [], updateableApps = [], disabledApps = [], stableApps = [], testApps = [], devApps = [];
 
-    Object.keys(result).forEach(function(key) {
+    Object.keys(result).forEach(function (key) {
       if (result[key].updateAvailable) updateableApps.push(result[key].name);
       if (result[key].sdk === 2) sdkv2Apps.push(result[key].name);
       if (
@@ -132,7 +159,7 @@ await Homey.apps.getApps()
       if (result[key].channel === 'beta' || result[key].channel === 'test') testApps.push(result[key].name);
     });
 
-    log(Object.keys(result).length, 'Apps', '(' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, '  + sdkv3Apps.length + ' SDKv3, '  + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
+    log(Object.keys(result).length, 'Apps', '(' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
     if (showStableApps) {
       log('---------------------------------------------')
       log('App(s) in the Stable channel:');
@@ -187,11 +214,11 @@ await Homey.apps.getApps()
 let zones = {};
 await Homey.zones.getZones()
   .then(result => {
-    Object.keys(result).forEach(function(key) {
+    Object.keys(result).forEach(function (key) {
       zones[result[key].id] = result[key].name;
     });
     log(Object.keys(result).length, 'Zones');
-    
+
     if (showZones) {
       log('---------------------------------------------')
       log('Zones:');
@@ -209,7 +236,7 @@ await Homey.insights.getLogs()
   .then(result => {
     let boolean = 0, number = 0;
 
-    Object.keys(result).forEach(function(key) {
+    Object.keys(result).forEach(function (key) {
       if (result[key].type === 'number') number++;
       if (result[key].type === 'boolean') boolean++;
     });
@@ -221,29 +248,29 @@ await Homey.insights.getLogs()
 await Homey.logic.getVariables()
   .then(result => {
     let boolean = [], number = [], string = [];
-  
-    Object.keys(result).forEach(function(key) {
+
+    Object.keys(result).forEach(function (key) {
       if (result[key].type === 'boolean') boolean.push(result[key].name + ' (ID: ' + result[key].id + ')');
       if (result[key].type === 'number') number.push(result[key].name + ' (ID: ' + result[key].id + ')');
       if (result[key].type === 'string') string.push(result[key].name + ' (ID: ' + result[key].id + ')');
     });
 
     log(Object.keys(result).length, 'Logic Variables', '(' + boolean.length + ' Boolean (Yes/No), ' + number.length + ' Number, ' + string.length + ' String (Text))');
-    
+
     if (showLogicBoolean) {
       log('---------------------------------------------')
       log('Boolean (yes/no) variable(s):');
       log(boolean.join('\r\n'));
       log('---------------------------------------------')
     }
-    
+
     if (showLogicNumber) {
       log('---------------------------------------------')
       log('Number variable(s):');
       log(number.join('\r\n'));
       log('---------------------------------------------')
     }
-    
+
     if (showLogicString) {
       log('---------------------------------------------')
       log('String (text) variable(s):');
@@ -257,13 +284,13 @@ await Homey.logic.getVariables()
 await Homey.flow.getFlows()
   .then(result => {
     let disabledFlows = [], brokenFlows = [];
-    Object.keys(result).forEach(function(key) {
+    Object.keys(result).forEach(function (key) {
       if (!result[key].enabled) disabledFlows.push(result[key].name);
       if (result[key].broken) brokenFlows.push(result[key].name);
     });
 
-    log(Object.keys(result).length, 'Flows', '('  + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
-    
+    log(Object.keys(result).length, 'Flows', '(' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
+
     if (showBrokenFlows) {
       log('---------------------------------------------')
       log('Broken flow name(s):');
@@ -283,13 +310,13 @@ await Homey.flow.getFlows()
 await Homey.flow.getAdvancedFlows()
   .then(result => {
     let disabledFlows = [], brokenFlows = [];
-    Object.keys(result).forEach(function(key) {
+    Object.keys(result).forEach(function (key) {
       if (!result[key].enabled) disabledFlows.push(result[key].name);
       if (result[key].broken) brokenFlows.push(result[key].name);
     });
 
-    log(Object.keys(result).length, 'Advanced flows', '('  + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
-    
+    log(Object.keys(result).length, 'Advanced flows', '(' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
+
     if (showBrokenAdvancedFlows) {
       log('---------------------------------------------')
       log('Broken advanced flow name(s):');
@@ -311,7 +338,7 @@ if (homeyPlatformVersion === 2) {
     .then(result => {
       let images = [];
 
-      Object.keys(result).forEach(function(key) {
+      Object.keys(result).forEach(function (key) {
         if (result[key].id !== 'dummy') {
           images.push(result[key].url);
         }
@@ -337,7 +364,7 @@ if (Homey.moods !== undefined) {
     .then(result => {
       let moods = [];
 
-      Object.keys(result).forEach(async function(key) {
+      Object.keys(result).forEach(async function (key) {
         moods.push(zones[result[key].zone] + ' : ' + result[key].name);
       });
 
@@ -356,7 +383,7 @@ if (Homey.moods !== undefined) {
 await Homey.alarms.getAlarms()
   .then(result => {
     let enabled = 0;
-    Object.keys(result).forEach(function(key) {
+    Object.keys(result).forEach(function (key) {
       if (result[key].enabled) enabled++;
     });
 
@@ -364,12 +391,12 @@ await Homey.alarms.getAlarms()
   })
   .catch(() => log('Failed: Getting alarms'));
 
-await Homey.apps.getAppSettings({id: 'com.athom.homeyscript'})
+await Homey.apps.getAppSettings({ id: 'com.athom.homeyscript' })
   .then(result => {
     log(Object.keys(result.scripts).length, 'HomeyScript scripts', '(' + ((result.tokens) ? Object.keys(result.tokens).length : 0) + ' Token/Tag)');
   })
   .catch(() => {
-    if (homeyPlatformVersion === 2 && homeyVersion.localeCompare("10.0.0-rc.80", undefined, {numeric: true, preversion: ["rc"]}) < 0) {
+    if (homeyPlatformVersion === 2 && homeyVersion.localeCompare("10.0.0-rc.80", undefined, { numeric: true, preversion: ["rc"] }) < 0) {
       log('Failed: Getting HomeyScript, Homey Pro (early 2023): getting information from apps is currently unavailable.');
     }
     else {
@@ -377,10 +404,10 @@ await Homey.apps.getAppSettings({id: 'com.athom.homeyscript'})
     }
   });
 
-await Homey.apps.getAppSettings({id: 'net.i-dev.betterlogic'})
+await Homey.apps.getAppSettings({ id: 'net.i-dev.betterlogic' })
   .then(result => {
     let boolean = 0, number = 0, string = 0;
-    Object.keys(result.variables).forEach(function(key) {
+    Object.keys(result.variables).forEach(function (key) {
       if (result.variables[key].type === 'boolean') boolean++;
       if (result.variables[key].type === 'number') number++;
       if (result.variables[key].type === 'string') string++;
@@ -389,7 +416,7 @@ await Homey.apps.getAppSettings({id: 'net.i-dev.betterlogic'})
     log(Object.keys(result.variables).length, 'Better Logic Variables', '(' + boolean + ' Boolean (Yes/No), ' + number + ' Number, ' + string + ' String)');
   })
   .catch(() => {
-    if (homeyPlatformVersion === 2 && homeyVersion.localeCompare("10.0.0-rc.80", undefined, {numeric: true, preversion: ["rc"]}) < 0) {
+    if (homeyPlatformVersion === 2 && homeyVersion.localeCompare("10.0.0-rc.80", undefined, { numeric: true, preversion: ["rc"] }) < 0) {
       log('Failed: Getting Better logic, Homey Pro (early 2023): getting information from apps is currently unavailable.');
     }
   });
@@ -401,7 +428,7 @@ await Homey.devices.getDevices()
   .then(result => {
     let virtualNames = [], irNames = [];
 
-    Object.keys(result).forEach(function(key) {
+    Object.keys(result).forEach(function (key) {
       const device = result[key];
       const virtualDeviceApps = [
         'homey:virtualdriver',
@@ -432,7 +459,7 @@ await Homey.devices.getDevices()
             groupDevices[device.id].name = device.name;
           }
         }
-        
+
         if (device.group) {
           groupedDevices += 1;
 
@@ -459,7 +486,7 @@ await Homey.devices.getDevices()
       else if (device.flags.includes('zwaveRoot')) {
         zwaveDevices.push(device.name + ' (Node ID: ' + device.settings.zw_node_id + ')');
         zwaveNodes.push(Number(device.settings.zw_node_id));
-        
+
         if (
           device.settings.zw_battery === '✓'
           || device.energyObj.batteries
@@ -470,7 +497,7 @@ await Homey.devices.getDevices()
           zwaveRouterDevices.push(device.name + ' (Node ID: ' + device.settings.zw_node_id + ')');
         }
 
-        switch(device.settings.zw_secure) {
+        switch (device.settings.zw_secure) {
           case '⨯':
             zwaveSxDevices.push(device.name + ' (Node ID: ' + device.settings.zw_node_id + ')');
             break;
@@ -548,7 +575,7 @@ await Homey.zwave.getState()
       .filter((el) => !zwaveNodes.includes(el))
       .sort((a, b) => a - b)
       .slice(1);
-    
+
     log(zwaveDevices.length, 'Z-Wave devices', '(' + zwaveSxDevices.length + ' Unsecure, ' + zwaveS0Devices.length + ' Secure (S0), ' + zwaveS2AuthDevices.length + ' Secure (S2 Authenticated), ' + zwaveS2UnauthDevices.length + ' Secure (S2 Unauthenticated), ' + zwaveRouterDevices.length + ' Router, ' + zwaveBatteryDevices.length + ' Battery, ' + result.zw_state.noAckNodes.length + ' Unreachable, ' + unknownNodes.length + ' Unknown)')
 
     if (showZwaveDevices) {
@@ -635,11 +662,11 @@ if (Homey.zigbee !== undefined) {
 if (zigbee) {
   let zigbeeDevices = [], routerDevices = [], endDevices = [];
 
-  Object.keys(zigbee.nodes).forEach(function(key) {
+  Object.keys(zigbee.nodes).forEach(function (key) {
     device = zigbee.nodes[key];
     let deviceName = device.name;
     if (showZigbeeLastSeen && device.hasOwnProperty('lastSeen')) {
-      const lastSeen = new Date(device.lastSeen).toLocaleString('en-GB', {timeZone: timezone, month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+      const lastSeen = new Date(device.lastSeen).toLocaleString('en-GB', { timeZone: timezone, month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       deviceName += ' (last seen: ' + lastSeen + ')';
     }
     zigbeeDevices.push(deviceName);
@@ -647,7 +674,7 @@ if (zigbee) {
     if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
     if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
   });
-  
+
   log(zigbeeDevices.length, 'Zigbee devices', '(' + routerDevices.length + ' Router, ' + endDevices.length + ' End device)');
 
   if (showZigbeeNodes) {
