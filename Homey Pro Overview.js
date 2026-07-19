@@ -30,6 +30,7 @@ const showZwaveUnknownNodes = false; // Node ID's of unknown nodes
 const showZigbeeNodes = false; // Names of all ZigBee devices
 const showZigbeeRouter = false; // Names of ZigBee: router devices
 const showZigbeeEndDevice = false; // Names of ZigBee: end device devices
+const showZigbeeUnknown = false; // Names of ZigBee: unknown type devices
 const showZigbeeLastSeen = false; // Show additional: the last seen time and date (HP 2023+ only)
 const showVirtualDevices = false; // Names of all Virtual devices
 const showIRDevices = false; // Names of all InfraRed devices
@@ -37,7 +38,7 @@ const showGroupDevices = false; // Names of all group devices and its containing
 
 // ================= Don't edit anything below here =================
 
-log('--------------- Homey Pro Overview v1.20 --------------');
+log('--------------- Homey Pro Overview v1.21 --------------');
 
 await Homey.system.getSystemName()
   .then(result => log('Homey name:', result))
@@ -660,7 +661,7 @@ if (Homey.zigbee !== undefined) {
 }
 
 if (zigbee) {
-  let zigbeeDevices = [], routerDevices = [], endDevices = [];
+  let zigbeeDevices = [], routerDevices = [], endDevices = [], unkownZigbeeDevices = [];
 
   Object.keys(zigbee.nodes).forEach(function (key) {
     device = zigbee.nodes[key];
@@ -671,11 +672,14 @@ if (zigbee) {
     }
     zigbeeDevices.push(deviceName);
 
-    if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
-    if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
+    if (device.type) {
+      if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
+      if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
+    }
+    else if (device.type.toLowerCase() != 'coordinator') unknownZigbeeDevices.push(deviceName);
   });
 
-  log(zigbeeDevices.length, 'Zigbee devices', '(' + routerDevices.length + ' Router, ' + endDevices.length + ' End device)');
+  log(zigbeeDevices.length, 'Zigbee devices', '(' + routerDevices.length + ' Router, ' + endDevices.length + ' End device, ' + unkownZigbeeDevices.length + ' Unknown type device)');
 
   if (showZigbeeNodes) {
     log('---------------------------------------------')
@@ -694,6 +698,13 @@ if (zigbee) {
   if (showZigbeeEndDevice) {
     log('---------------------------------------------')
     log('ZigBee end device(s):');
+    log(endDevices.sort((a, b) => a - b).join('\r\n'));
+    log('---------------------------------------------')
+  }
+
+  if (showZigbeeUnknown) {
+    log('---------------------------------------------')
+    log('ZigBee unknown type device(s):');
     log(endDevices.sort((a, b) => a - b).join('\r\n'));
     log('---------------------------------------------')
   }

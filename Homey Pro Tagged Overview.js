@@ -54,8 +54,8 @@ const showTotalDevices = true; // Show amount of total devices
 const returnableObject = {};
 const returnableString = [];
 
-returnableObject['Script_version'] = 'v1.4';
-if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.4 --------------');
+returnableObject['Script_version'] = 'v1.5';
+if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.5 --------------');
 
 if (showName) {
   await Homey.system.getSystemName()
@@ -706,26 +706,33 @@ if (showDevices) {
   }
 
   if (zigbee) {
-    let zigbeeDevices = [], routerDevices = [], endDevices = [];
+    let zigbeeDevices = [], routerDevices = [], endDevices = [], unknownZigbeeDevices = [];
 
     Object.keys(zigbee.nodes).forEach(function (key) {
       device = zigbee.nodes[key];
       let deviceName = device.name;
       zigbeeDevices.push(deviceName);
 
-      if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
-      if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
+      if (device.type) {
+        if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
+        if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
+      }
+      else if (device.type.toLowerCase() != 'coordinator') unknownZigbeeDevices.push(deviceName);
     });
 
     if (showZigbee) {
       returnableObject['Devices']['Zigbee'] = {};
-      returnableObject['Devices']['Zigbee']['Overview'] = zigbeeDevices.length + ' Zigbee devices' + ' (' + routerDevices.length + ' Router, ' + endDevices.length + ' End device)';
+      returnableObject['Devices']['Zigbee']['Overview'] = zigbeeDevices.length + ' Zigbee devices' + ' (' + routerDevices.length + ' Router, ' + endDevices.length + ' End device, ' + unknownZigbeeDevices.length + ' Unknown type device)';
       returnableObject['Devices']['Zigbee']['Total'] = zigbeeDevices.length;
       returnableObject['Devices']['Zigbee']['Router'] = routerDevices.length;
       returnableObject['Devices']['Zigbee']['Router_names'] = routerDevices;
       returnableObject['Devices']['Zigbee']['End_device'] = endDevices.length;
       returnableObject['Devices']['Zigbee']['End_device_names'] = endDevices;
-      returnableString.push(zigbeeDevices.length + ' Zigbee devices' + ' (' + routerDevices.length + ' Router, ' + endDevices.length + ' End device)');
+      returnableObject['Devices']['Zigbee']['End_device'] = endDevices.length;
+      returnableObject['Devices']['Zigbee']['End_device_names'] = endDevices;
+      returnableObject['Devices']['Zigbee']['Unknown_type_device'] = unknownZigbeeDevices.length;
+      returnableObject['Devices']['Zigbee']['Unknown_type_device_names'] = unknownZigbeeDevices;
+      returnableString.push(zigbeeDevices.length + ' Zigbee devices' + ' (' + routerDevices.length + ' Router, ' + endDevices.length + ' End device, ' + unknownZigbeeDevices.length + ' Unknown type device)');
     }
 
     allDevices += zigbeeDevices.length;
