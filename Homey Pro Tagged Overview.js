@@ -717,7 +717,7 @@ if (showDevices) {
         if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
         if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
       }
-      else if (device.type.toLowerCase() != 'coordinator') unknownZigbeeDevices.push(deviceName);
+      else unknownZigbeeDevices.push(deviceName);
     });
 
     if (showZigbee) {

@@ -676,7 +676,7 @@ if (zigbee) {
       if (device.type.toLowerCase() === 'router') routerDevices.push(deviceName);
       if (device.type.toLowerCase() === 'enddevice') endDevices.push(deviceName);
     }
-    else if (device.type.toLowerCase() != 'coordinator') unknownZigbeeDevices.push(deviceName);
+    else unknownZigbeeDevices.push(deviceName);
   });
 
   log(zigbeeDevices.length, 'Zigbee devices', '(' + routerDevices.length + ' Router, ' + endDevices.length + ' End device, ' + unkownZigbeeDevices.length + ' Unknown type device)');
