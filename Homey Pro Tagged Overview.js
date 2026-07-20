@@ -293,8 +293,8 @@ if (showMain) {
         returnableObject['Apps']['Updateable_names'] = updateableApps;
         returnableObject['Apps']['Disabled'] = disabledApps.length;
         returnableObject['Apps']['Disabled_names'] = disabledApps;
-        if (appState) returnableObject['Apps']['Crashed'] = disabledApps.length;
-        if (appState) returnableObject['Apps']['Crashed_names'] = disabledApps;
+        if (appState) returnableObject['Apps']['Crashed'] = crashedApps.length;
+        if (appState) returnableObject['Apps']['Crashed_names'] = crashedApps;
         if (appState) returnableString.push(Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled, ' + crashedApps.length + ' Crashed)');
         if (!appState) returnableString.push(Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
       })
