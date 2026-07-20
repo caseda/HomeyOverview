@@ -661,7 +661,7 @@ if (Homey.zigbee !== undefined) {
 }
 
 if (zigbee) {
-  let zigbeeDevices = [], routerDevices = [], endDevices = [], unkownZigbeeDevices = [];
+  let zigbeeDevices = [], routerDevices = [], endDevices = [], unknownZigbeeDevices = [];
 
   Object.keys(zigbee.nodes).forEach(function (key) {
     device = zigbee.nodes[key];
@@ -679,7 +679,7 @@ if (zigbee) {
     else unknownZigbeeDevices.push(deviceName);
   });
 
-  log(zigbeeDevices.length, 'Zigbee devices', '(' + routerDevices.length + ' Router, ' + endDevices.length + ' End device, ' + unkownZigbeeDevices.length + ' Unknown type device)');
+  log(zigbeeDevices.length, 'Zigbee devices', '(' + routerDevices.length + ' Router, ' + endDevices.length + ' End device, ' + unknownZigbeeDevices.length + ' Unknown type device)');
 
   if (showZigbeeNodes) {
     log('---------------------------------------------')
@@ -705,7 +705,7 @@ if (zigbee) {
   if (showZigbeeUnknown) {
     log('---------------------------------------------')
     log('ZigBee unknown type device(s):');
-    log(endDevices.sort((a, b) => a - b).join('\r\n'));
+    log(unknownZigbeeDevices.sort((a, b) => a - b).join('\r\n'));
     log('---------------------------------------------')
   }
 
