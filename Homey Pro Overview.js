@@ -1,7 +1,8 @@
 // Set any of these from `false;` to `true;` to see the corresponding Name(s) or Node ID('s) added to the list
 const showStorage = false; // Show storage status (Very slow!, is enabled for Homey Pro (early 2023))
 const showUpdateableApps = false; // Names of Apps that can be updated
-const showDisabledApps = false; // Names of Apps that are disabled or crashed
+const showDisabledApps = false; // Names of Apps that are disabled (and/or crashed depending on your Homey version)
+const showCrashedApps = false; // Names of Apps that are crashed (only from a certain Homey version)
 const showStableApps = false; // Names of Stable channel Apps
 const showTestApps = false; // Names of Test channel Apps
 const showDevApps = false; // Names of Apps that are installed via CLI or Community Appstore
@@ -38,7 +39,7 @@ const showGroupDevices = false; // Names of all group devices and its containing
 
 // ================= Don't edit anything below here =================
 
-log('--------------- Homey Pro Overview v1.21 --------------');
+log('--------------- Homey Pro Overview v1.22 --------------');
 
 await Homey.system.getSystemName()
   .then(result => log('Homey name:', result))
@@ -143,7 +144,7 @@ await Homey.users.getUsers()
 
 await Homey.apps.getApps()
   .then(result => {
-    let sdkv2Apps = [], sdkv3Apps = [], updateableApps = [], disabledApps = [], stableApps = [], testApps = [], devApps = [];
+    let appState = false, sdkv2Apps = [], sdkv3Apps = [], updateableApps = [], disabledApps = [], crashedApps = [], stableApps = [], testApps = [], devApps = [];
 
     Object.keys(result).forEach(function (key) {
       if (result[key].updateAvailable) updateableApps.push(result[key].name);
@@ -154,13 +155,21 @@ await Homey.apps.getApps()
       ) {
         sdkv3Apps.push(result[key].name);
       }
-      if (!result[key].ready) disabledApps.push(result[key].name);
+      if (result[key].state) {
+        appState = true;
+        if (result[key].state === 'stopped') disabledApps.push(result[key].name);
+        if (result[key].state === 'crashed') crashedApps.push(result[key].name);
+      }
+      else if (!result[key].ready) disabledApps.push(result[key].name);
+
       if (result[key].origin === 'devkit_install') devApps.push(result[key].name);
       else if (result[key].channel === 'stable' || result[key].channel === 'live') stableApps.push(result[key].name);
       if (result[key].channel === 'beta' || result[key].channel === 'test') testApps.push(result[key].name);
     });
 
-    log(Object.keys(result).length, 'Apps', '(' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
+    if (appState) log(Object.keys(result).length, 'Apps', '(' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled, ' + crashedApps.length + ' Crashed)');
+    if (!appState) log(Object.keys(result).length, 'Apps', '(' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
+
     if (showStableApps) {
       log('---------------------------------------------')
       log('App(s) in the Stable channel:');
@@ -207,6 +216,13 @@ await Homey.apps.getApps()
       log('---------------------------------------------')
       log('Disabled app(s):');
       log(disabledApps.join('\r\n'));
+      log('---------------------------------------------')
+    }
+
+    if (appState && showCrashedApps) {
+      log('---------------------------------------------')
+      log('Crashed app(s):');
+      log(crashedApps.join('\r\n'));
       log('---------------------------------------------')
     }
   })

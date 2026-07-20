@@ -54,8 +54,8 @@ const showTotalDevices = true; // Show amount of total devices
 const returnableObject = {};
 const returnableString = [];
 
-returnableObject['Script_version'] = 'v1.5';
-if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.5 --------------');
+returnableObject['Script_version'] = 'v1.6';
+if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.6 --------------');
 
 if (showName) {
   await Homey.system.getSystemName()
@@ -253,7 +253,7 @@ if (showMain) {
   if (showApps) {
     await Homey.apps.getApps()
       .then(result => {
-        let sdkv2Apps = [], sdkv3Apps = [], updateableApps = [], disabledApps = [], stableApps = [], testApps = [], devApps = [];
+        let appState = false, sdkv2Apps = [], sdkv3Apps = [], updateableApps = [], disabledApps = [], crashedApps = [], stableApps = [], testApps = [], devApps = [];
 
         Object.keys(result).forEach(function (key) {
           if (result[key].updateAvailable) updateableApps.push(result[key].name);
@@ -264,14 +264,20 @@ if (showMain) {
           ) {
             sdkv3Apps.push(result[key].name);
           }
-          if (!result[key].ready) disabledApps.push(result[key].name);
+          if (result[key].state) {
+            appState = true;
+            if (result[key].state === 'stopped') disabledApps.push(result[key].name);
+            if (result[key].state === 'crashed') crashedApps.push(result[key].name);
+          }
+          else if (!result[key].ready) disabledApps.push(result[key].name);
           if (result[key].origin === 'devkit_install') devApps.push(result[key].name);
           else if (result[key].channel === 'stable' || result[key].channel === 'live') stableApps.push(result[key].name);
           if (result[key].channel === 'beta' || result[key].channel === 'test') testApps.push(result[key].name);
         });
 
         returnableObject['Apps'] = {};
-        returnableObject['Apps']['Overview'] = Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)';
+        if (appState) returnableObject['Apps']['Overview'] = Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled, ' + crashedApps.length + ' Crashed)';
+        if (!appState) returnableObject['Apps']['Overview'] = Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)';
         returnableObject['Apps']['Total'] = Object.keys(result).length;
         returnableObject['Apps']['Stable'] = stableApps.length;
         returnableObject['Apps']['Stable_names'] = stableApps;
@@ -287,7 +293,10 @@ if (showMain) {
         returnableObject['Apps']['Updateable_names'] = updateableApps;
         returnableObject['Apps']['Disabled'] = disabledApps.length;
         returnableObject['Apps']['Disabled_names'] = disabledApps;
-        returnableString.push(Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
+        if (appState) returnableObject['Apps']['Crashed'] = disabledApps.length;
+        if (appState) returnableObject['Apps']['Crashed_names'] = disabledApps;
+        if (appState) returnableString.push(Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled, ' + crashedApps.length + ' Crashed)');
+        if (!appState) returnableString.push(Object.keys(result).length + ' Apps' + ' (' + stableApps.length + ' Stable, ' + testApps.length + ' Test, ' + devApps.length + ' Development/Community Appstore, ' + sdkv2Apps.length + ' SDKv2, ' + sdkv3Apps.length + ' SDKv3, ' + updateableApps.length + ' Updateable, ' + disabledApps.length + ' Disabled/Crashed)');
       })
       .catch(() => log('Failed: Getting apps'));
   }
