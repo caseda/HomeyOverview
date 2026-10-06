@@ -17,7 +17,9 @@ const showBrokenFlows = false; // Names of Flows that are broken
 const showDisabledAdvancedFlows = false; // Names of Advanced Flows that are disabled
 const showBrokenAdvancedFlows = false; // Names of Advanced Flows that are broken
 const showImages = false; // URLs of all your images (HP 2023+ only)
-const showMoods = false; // Names of all Moods (HP 2023+ only)
+const showMoods = false; // Names of all Moods
+const showDeviceUpdates = false; // Names of all updatable devices and their current/available version (HP 2023+ only)
+const showDeviceUpdateHistory = false; // Names of all updated devices and their current version (HP 2023+ only)
 const showUnavailableDevices = false; // Names of devices that are marked unavailable
 const showZwaveDevices = false; // Names and Node ID of all Z-Wave devices
 const showZwaveRouterDevices = false; // Names and Node ID of Z-Wave router devices
@@ -36,10 +38,9 @@ const showZigbeeLastSeen = false; // Show additional: the last seen time and dat
 const showVirtualDevices = false; // Names of all Virtual devices
 const showIRDevices = false; // Names of all InfraRed devices
 const showGroupDevices = false; // Names of all group devices and its containing devices
-
 // ================= Don't edit anything below here =================
 
-log('--------------- Homey Pro Overview v1.22 --------------');
+log('--------------- Homey Pro Overview v1.23 --------------');
 
 await Homey.system.getSystemName()
   .then(result => log('Homey name:', result))
@@ -439,7 +440,7 @@ await Homey.apps.getAppSettings({ id: 'net.i-dev.betterlogic' })
   });
 
 log('\r\n----------------- Devices -------------------');
-let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [], groupDevices = {}, groupedDevices = 0;
+let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [], groupDevices = {}, groupedDevices = 0, deviceUpdates = {}, devicesUpdated = {};
 
 await Homey.devices.getDevices()
   .then(result => {
@@ -456,6 +457,25 @@ await Homey.devices.getDevices()
         'homey:app:com.swttt.devicegroups',
         'homey:app:com.sysInternals',
       ]
+
+      if (homeyPlatformVersion === 2) {
+        if (device.firmwareUpdate) {
+          if (device.firmwareUpdate.state === 'idle') {
+            devicesUpdated[device.id] = {
+              name: device.name,
+              currentVersion: device.firmwareUpdate.currentVersion
+            }
+          }
+          else if (device.firmwareUpdate.state === 'available') {
+            deviceUpdates[device.id] = {
+              name: device.name,
+              currentVersion: device.firmwareUpdate.currentVersion,
+              availableVersion: device.firmwareUpdate.availableVersion,
+              requiresWake: device.firmwareUpdate.requiresWake
+            }
+          }
+        }
+      }
 
       if (
         device.hasOwnProperty('available')
@@ -541,6 +561,32 @@ await Homey.devices.getDevices()
     });
 
     allDevices = Object.keys(groupDevices).length + virtualNames.length + irNames.length + zwaveDevices.length + other + homeyBridge;
+
+    if (homeyPlatformVersion === 2) {
+      log(Object.keys(deviceUpdates).length, 'Updatable devices');
+      if (showDeviceUpdates) {
+        log('---------------------------------------------')
+        log('Updatable device(s):');
+        const sortDevices = Object.values(deviceUpdates).sort((a, b) => (a.name).localeCompare(b.name));
+
+        Object.values(sortDevices).forEach(update => {
+          console.log(`${update.name} (v${update.currentVersion} → v${update.availableVersion}, requires wake-up: ${update.requiresWake ? 'yes' : 'no'})`);
+        });
+        log('---------------------------------------------')
+      }
+
+      log(Object.keys(devicesUpdated).length, 'Updated devices');
+      if (showDeviceUpdateHistory) {
+        log('---------------------------------------------')
+        log('Updated device(s) (History):');
+        const sortDevices = Object.values(devicesUpdated).sort((a, b) => (a.name).localeCompare(b.name));
+
+        Object.values(sortDevices).forEach(update => {
+          console.log(`${update.name} (v${update.currentVersion})`);
+        });
+        log('---------------------------------------------')
+      }
+    }
 
     log(unavailableDevices.length, 'Unavailable devices');
     if (showUnavailableDevices) {

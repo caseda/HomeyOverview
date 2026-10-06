@@ -32,13 +32,15 @@ const showInsights = true; // Show amount of insight entries
 const showLogic = true; // Show amount of logic variables
 const showFlows = true; // Show amount of Flows
 const showAdvancedFlows = true; // Show amount of advanced Flows
-const showImages = true; // Show amount of images (Homey Pro 2023 only)
-const showMoods = true; // Show amount of Moods (Homey Pro 2023 only)
+const showImages = true; // Show amount of images (Homey Pro 2023+ only)
+const showMoods = true; // Show amount of Moods
 const showAlarms = true; // Show amount of Alarm clocks
 const showScripts = true; // Show amount of HomeyScript scripts
 const showBL = true; // Show amount of Better Logic variables (if installed)
 
 const showDevices = true; // Show everything (enabled) under "Devices"
+const showDeviceUpdates = true; // Show updatable devices (Homey Pro 2023+ only)
+const showDeviceUpdateHistory = true; // Show (previously) updated devices (Homey Pro 2023+ only)
 const showUnavailable = true // Show amount of "Unavailable" devices
 const showVirtual = true; // Show amount of virtual devices
 const showIR = true; // Show amount of Infra Red devices
@@ -54,8 +56,8 @@ const showTotalDevices = true; // Show amount of total devices
 const returnableObject = {};
 const returnableString = [];
 
-returnableObject['Script_version'] = 'v1.6';
-if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.6 --------------');
+returnableObject['Script_version'] = 'v1.7';
+if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.7 --------------');
 
 if (showName) {
   await Homey.system.getSystemName()
@@ -531,7 +533,7 @@ if (showDevices) {
 
   if (showHeaders) returnableString.push(stringSeparator + '----------------- Devices -------------------');
 
-  let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [], groupDevices = {};
+  let allDevices = 0, other = 0, homeyBridge = 0, zwaveDevices = [], zwaveNodes = [], zwaveRouterDevices = [], zwaveBatteryDevices = [], zwaveSxDevices = [], zwaveS0Devices = [], zwaveS2AuthDevices = [], zwaveS2UnauthDevices = [], unavailableDevices = [], groupDevices = {}, deviceUpdates = {}, devicesUpdated = {};
 
   await Homey.devices.getDevices()
     .then(result => {
@@ -548,6 +550,25 @@ if (showDevices) {
           'homey:app:com.swttt.devicegroups',
           'homey:app:com.sysInternals',
         ]
+
+        if (homeyPlatformVersion === 2) {
+          if (device.firmwareUpdate) {
+            if (device.firmwareUpdate.state === 'idle') {
+              devicesUpdated[device.id] = {
+                name: device.name,
+                currentVersion: device.firmwareUpdate.currentVersion
+              }
+            }
+            else if (device.firmwareUpdate.state === 'available') {
+              deviceUpdates[device.id] = {
+                name: device.name,
+                currentVersion: device.firmwareUpdate.currentVersion,
+                availableVersion: device.firmwareUpdate.availableVersion,
+                requiresWake: device.firmwareUpdate.requiresWake
+              }
+            }
+          }
+        }
 
         if (
           device.hasOwnProperty('available')
@@ -635,6 +656,26 @@ if (showDevices) {
 
       allDevices = Object.keys(groupDevices).length + virtualNames.length + irNames.length + zwaveDevices.length + other + homeyBridge;
 
+      if (homeyPlatformVersion === 2) {
+        if (showDeviceUpdates && homeyPlatformVersion === 2) {
+          returnableObject['Devices']['Update'] = {}
+          returnableObject['Devices']['Update']['Overview'] = Object.keys(deviceUpdates).length + ' Updatable devices';
+          returnableObject['Devices']['Update']['Total'] = Object.keys(deviceUpdates).length;
+          const sortUpdateDevices = Object.values(deviceUpdates).sort((a, b) => (a.name).localeCompare(b.name));
+          returnableObject['Devices']['Update']['Names'] = Object.values(sortUpdateDevices).map(device => device.name);
+          returnableObject['Devices']['Update']['Devices'] = deviceUpdates;
+          returnableString.push(Object.keys(deviceUpdates).length + ' Updatable devices');
+        }
+        if (showDeviceUpdateHistory && homeyPlatformVersion === 2) {
+          returnableObject['Devices']['Updated'] = {}
+          returnableObject['Devices']['Updated']['Overview'] = Object.keys(devicesUpdated).length + ' Updated devices';
+          returnableObject['Devices']['Updated']['Total'] = Object.keys(devicesUpdated).length;
+          const sortUpdatedDevices = Object.values(devicesUpdated).sort((a, b) => (a.name).localeCompare(b.name));
+          returnableObject['Devices']['Updated']['Names'] = Object.values(sortUpdatedDevices).map(device => device.name);
+          returnableObject['Devices']['Updated']['Devices'] = devicesUpdated;
+          returnableString.push(Object.keys(devicesUpdated).length + ' Updated devices');
+        }
+      }
       if (showUnavailable) {
         returnableObject['Devices']['Unavailable'] = {};
         returnableObject['Devices']['Unavailable']['Overview'] = unavailableDevices.length + ' Unavailable devices';
@@ -660,7 +701,7 @@ if (showDevices) {
         returnableObject['Groups'] = {};
         returnableObject['Groups']['Overview'] = Object.keys(groupDevices).length + ' Group devices';
         returnableObject['Groups']['Total'] = Object.keys(groupDevices).length;
-        returnableObject['Groups'] = groupDevices;
+        Object.assign(returnableObject['Groups'], groupDevices);
         returnableString.push(Object.keys(groupDevices).length + ' Group devices');
       }
     })
