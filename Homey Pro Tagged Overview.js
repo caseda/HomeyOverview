@@ -56,8 +56,8 @@ const showTotalDevices = true; // Show amount of total devices
 const returnableObject = {};
 const returnableString = [];
 
-returnableObject['Script_version'] = 'v1.7';
-if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.7 --------------');
+returnableObject['Script_version'] = 'v1.7.1';
+if (showHeaders) returnableString.push('--------------- Homey Pro Tagged Overview v1.7.1 --------------');
 
 if (showName) {
   await Homey.system.getSystemName()
@@ -407,13 +407,13 @@ if (showMain) {
         });
 
         returnableObject['Advanced flows'] = {};
-        returnableObject['Advanced flows']['Overview'] = Object.keys(result).length + ' Flows' + ' (' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)';
+        returnableObject['Advanced flows']['Overview'] = Object.keys(result).length + ' Advanced Flows' + ' (' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)';
         returnableObject['Advanced flows']['Total'] = Object.keys(result).length;
         returnableObject['Advanced flows']['Broken'] = brokenFlows.length;
         returnableObject['Advanced flows']['Broken_names'] = brokenFlows;
         returnableObject['Advanced flows']['Disabled'] = disabledFlows.length;
         returnableObject['Advanced flows']['Disabled_names'] = disabledFlows;
-        returnableString.push(Object.keys(result).length + ' Flows' + ' (' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
+        returnableString.push(Object.keys(result).length + ' Advanced Flows' + ' (' + brokenFlows.length + ' Broken, ' + disabledFlows.length + ' Disabled)');
       })
       .catch(() => log('Failed: Getting advanced flows'));
   }
